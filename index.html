@@ -224,8 +224,10 @@ const PAL={
 const KEY='romaQuest.v1';
 let S={};
 try{S=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){}
-S=Object.assign({start:null,sel:1,pins:[],dark:null},S);
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+S=Object.assign({start:null,sel:1,pins:[],dark:null,tomb:{}},S);
+let syncT=0;
+const saveLocal=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const save=()=>{saveLocal();clearTimeout(syncT);syncT=setTimeout(()=>sync(),600)};
 const dayMs=864e5;
 const sod=d=>{const x=new Date(d);x.setHours(0,0,0,0);return x.getTime()};
 const curDay=()=>S.start?Math.min(30,Math.max(1,Math.round((sod(Date.now())-sod(S.start))/dayMs)+1)):0;
@@ -302,9 +304,9 @@ function pinSvg(st){const c=(SK[st]||SK.todo).c;const g=st==='hired'?glyph.star:
 const markers=new Map();let cands=[],candMk=[],draft=null,draftMk=null,selId=null;
 function mkPin(p){
  const e=document.createElement('div');e.className='pin';e.innerHTML=pinSvg(p.status);
- e.addEventListener('click',ev=>{ev.stopPropagation();openDetail(p.id)});
+ e.addEventListener('click',ev=>{ev.stopPropagation();quick(p)});
  const m=new maplibregl.Marker({element:e,anchor:'bottom',draggable:true}).setLngLat([p.lon,p.lat]).addTo(map);
- m.on('dragend',()=>{const l=m.getLngLat();p.lat=l.lat;p.lon=l.lng;save()});
+ m.on('dragend',()=>{const l=m.getLngLat();p.lat=l.lat;p.lon=l.lng;p.upd=Date.now();save()});
  markers.set(p.id,m);
 }
 /* ---------- scouted places (researched on the web) ---------- */
@@ -316,7 +318,7 @@ const LET={'Wholesale':'W','Cash & carry':'W','Store':'S','Warehouse':'L','Logis
 function syncScout(){
  scoutMk.forEach(m=>m.remove());scoutMk.length=0;
  SCOUT.forEach(s=>{if(isAdded(s))return;const e=document.createElement('div');e.className='scout';e.textContent=LET[s.type]||'•';e.title=s.name;
-  e.addEventListener('click',ev=>{ev.stopPropagation();fly([s.lat,s.lon],Math.max(map.getZoom(),15.5));openScout(s)});
+  e.addEventListener('click',ev=>{ev.stopPropagation();fly([s.lat,s.lon],Math.max(map.getZoom(),15.5));quick(s)});
   scoutMk.push(new maplibregl.Marker({element:e,anchor:'center'}).setLngLat([s.lon,s.lat]).addTo(map))});
 }
 function openScout(s){
@@ -375,18 +377,18 @@ function copyText(t){try{navigator.clipboard.writeText(t).catch(()=>fb())}catch(
 let FILT='all';
 function renderPlaces(){
  const cnt=k=>k==='all'?S.pins.length:S.pins.filter(p=>p.status===k).length;
- const sc=SCOUT.filter(s=>!isAdded(s));
+ const sc=SCOUT.filter(s=>!isAdded(s));if(ME)sc.sort((a,b)=>dist(a)-dist(b));
  const list=S.pins.filter(p=>FILT==='all'||p.status===FILT).sort((a,b)=>(b.upd||0)-(a.upd||0));
  let h=`<div class="chips"><button class="chip ${FILT==='all'?'on':''}" data-f="all">All ${cnt('all')}</button>${STATUS.map(s=>`<button class="chip ${FILT===s.k?'on':''}" data-f="${s.k}">${s.t} ${cnt(s.k)}</button>`).join('')}<button class="chip ${FILT==='scout'?'on':''}" data-f="scout">Scouted ${sc.length}</button></div>`;
  if(FILT==='scout'){
-  h+=sc.length?`<div class="sub" style="margin-top:10px">Found on the web for you. Tap one to see it, then Add.</div><div class="list">${sc.map(s=>`<div class="li" data-sid="${esc(s.id)}"><span class="scout" style="flex:none;pointer-events:none">${LET[s.type]||'•'}</span><div><div class="t">${esc(s.name)}</div><div class="sub">${esc(s.type)} · ${esc(s.zone||'')}</div></div></div>`).join('')}</div>`:`<div class="empty">Every scouted place is on your list.</div>`;
+  h+=sc.length?`<div class="sub" style="margin-top:10px">Found on the web for you. Tap one to see it, then Add.</div><div class="list">${sc.map(s=>`<div class="li" data-sid="${esc(s.id)}"><span class="scout" style="flex:none;pointer-events:none">${LET[s.type]||'•'}</span><div><div class="t">${esc(s.name)}</div><div class="sub">${ME?fmtD(dist(s))+' · ':''}${esc(s.type)} · ${esc(s.zone||'')}</div></div></div>`).join('')}</div>`:`<div class="empty">Every scouted place is on your list.</div>`;
   $('#body').innerHTML=h;return;
  }
  h+=list.length?`<div class="list">${list.map(p=>`<div class="li" data-id="${p.id}"><span class="dot" style="background:${SK[p.status].c}"></span><div><div class="t">${esc(p.name||'Untitled place')}</div><div class="sub">${esc(p.type)} · ${SK[p.status].t} · Day ${p.day}</div></div></div>`).join('')}</div>`:`<div class="empty">No places yet.<br>Tap the map to drop a pin, or use <b>Scan this area</b>.</div>`;
  h+=`<div class="card"><div class="row"><b>Backup</b><span class="sp"></span><button class="btn" id="bk">Copy</button><button class="btn" id="rs">Restore</button></div><div class="sub" style="margin-top:4px">Places save on this device. Copy a backup to move them to your phone or Mac.</div><div id="rbox" style="display:none;margin-top:8px"><div class="f" style="margin:0"><textarea id="rta" placeholder="Paste backup here"></textarea></div><button class="btn p w" id="rl" style="margin-top:8px">Load backup</button></div></div>`;
  $('#body').innerHTML=h;
 }
-$('#body').addEventListener('click',e=>{const li=e.target.closest('.li');if(li&&li.dataset.sid){const s=SCOUT.find(x=>x.id===li.dataset.sid);if(s){fly([s.lat,s.lon],16.5);openScout(s)}return}if(li){const p=S.pins.find(x=>x.id===li.dataset.id);if(p){fly([p.lat,p.lon],16.5);openDetail(p.id)}}});
+$('#body').addEventListener('click',e=>{const li=e.target.closest('.li');if(li&&li.dataset.sid){const s=SCOUT.find(x=>x.id===li.dataset.sid);if(s){fly([s.lat,s.lon],16.5);quick(s)}return}if(li){const p=S.pins.find(x=>x.id===li.dataset.id);if(p){fly([p.lat,p.lon],16.5);quick(p)}}});
 
 /* ---------- detail ---------- */
 let cur=null; // pin or draft or candidate
@@ -410,7 +412,7 @@ function openDetail(id,obj){
  $('#detail').classList.add('open');
  const pn=$('#panel');pn.classList.remove('peek');pn.classList.add('full');
 }
-function closeDetail(){$('#detail').classList.remove('open');cur=null;selId=null;if(draftMk){draftMk.remove();draftMk=null}draft=null;syncPins()}
+function closeDetail(){$('#detail').classList.remove('open');cur=null;Q=null;selId=null;if(draftMk){draftMk.remove();draftMk=null}draft=null;syncPins()}
 $('#dtop').addEventListener('click',e=>{
  if(e.target.id==='db')closeDetail();
  if(e.target.id==='ds'){
@@ -427,7 +429,7 @@ $('#dbody').addEventListener('click',e=>{
  if(b.id==='fx')openExt(`https://maps.apple.com/?ll=${cur.lat},${cur.lon}&q=${encodeURIComponent($('#fn').value||'Place')}`);
  if(b.id==='fw'&&cur.url)openExt(cur.url);
  if(b.id==='fd')openExt(`https://maps.apple.com/?daddr=${cur.lat},${cur.lon}&dirflg=w`);
- if(b.id==='del'){S.pins=S.pins.filter(x=>x!==cur);save();closeDetail();render();toast('Deleted')}
+ if(b.id==='del'){S.tomb=S.tomb||{};S.tomb[cur.id]=Date.now();S.pins=S.pins.filter(x=>x!==cur);save();closeDetail();render();toast('Deleted')}
 });
 
 /* ---------- drop pin + reverse geocode ---------- */
@@ -517,8 +519,10 @@ $('#zi').onclick=()=>map.zoomIn();$('#zo').onclick=()=>map.zoomOut();
 $('#cmp').onclick=()=>map.easeTo({bearing:0,pitch:0});
 map.on('rotate',()=>{$('#cmp svg').style.transform=`rotate(${-map.getBearing()}deg)`});
 let meMk=null;
+function setMe(c){ME={lat:c.latitude,lon:c.longitude};const ll=[ME.lon,ME.lat];if(!meMk){const e=document.createElement('div');e.className='me';meMk=new maplibregl.Marker({element:e}).setLngLat(ll).addTo(map)}else meMk.setLngLat(ll)}
 $('#loc').onclick=()=>{if(!navigator.geolocation){toast('Location unavailable');return}
- navigator.geolocation.getCurrentPosition(p=>{const ll=[p.coords.longitude,p.coords.latitude];if(!meMk){const e=document.createElement('div');e.className='me';meMk=new maplibregl.Marker({element:e}).setLngLat(ll).addTo(map)}else meMk.setLngLat(ll);map.flyTo({center:ll,zoom:16})},()=>toast('Location blocked. Allow it in system settings.'),{enableHighAccuracy:true,timeout:8000})};
+ navigator.geolocation.getCurrentPosition(p=>{setMe(p.coords);map.flyTo({center:[ME.lon,ME.lat],zoom:16})},()=>toast('Location blocked. Allow it in system settings.'),{enableHighAccuracy:true,timeout:8000})};
+if(navigator.geolocation){let first=true;navigator.geolocation.watchPosition(p=>{setMe(p.coords);const inRome=ME.lat>41.6&&ME.lat<42.15&&ME.lon>12.2&&ME.lon<12.85;if(first&&inRome){first=false;map.flyTo({center:[ME.lon,ME.lat],zoom:15});if(TAB.v==='places')render()}},()=>{},{enableHighAccuracy:true,maximumAge:15000,timeout:20000})}
 $('#mode').onclick=()=>{S.dark=!dark();save();applyTheme();map.setStyle(buildStyle(dark()))};
 matchMedia('(prefers-color-scheme: dark)').addEventListener&&matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(S.dark===null){applyTheme();map.setStyle(buildStyle(dark()))}});
 $('#seg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;TAB.v=b.dataset.t;$('#q').value='';$('#clr').style.display='none';render()});
@@ -532,7 +536,72 @@ function render(){
 $('#grab').addEventListener('click',()=>{const p=$('#panel');if(p.classList.contains('peek'))p.classList.remove('peek');else if(p.classList.contains('full')){p.classList.remove('full');p.classList.add('peek')}else p.classList.add('full')});
 if(matchMedia('(max-width:720px)').matches)$('#panel').classList.add('peek');
 map.on('load',()=>{render()});
+/* ---------- quick sheet: tap a place, tap a status ---------- */
+let Q=null,ME=null;
+const dist=o=>{if(!ME)return 0;const R=6371e3,r=Math.PI/180,dl=(o.lat-ME.lat)*r,dn=(o.lon-ME.lon)*r,a=Math.sin(dl/2)**2+Math.cos(ME.lat*r)*Math.cos(o.lat*r)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(a))};
+const fmtD=m=>m<1000?Math.round(m/10)*10+' m':(m/1000).toFixed(1)+' km';
+const gmaps=(o,mode)=>`https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lon}&travelmode=${mode}`;
+function quick(o){
+ if(draftMk){draftMk.remove();draftMk=null}draft=null;cur=null;
+ const pin=o.status?o:S.pins.find(p=>p.sid===o.id||p.id==='p-'+o.id);
+ Q={o,pin};paintQuick();
+ $('#detail').classList.add('open');
+ const pn=$('#panel');pn.classList.remove('peek');pn.classList.add('full');
+}
+function paintQuick(){
+ const {o,pin}=Q,p=pin||o,st=pin?pin.status:'';
+ selId=pin?pin.id:null;syncPins();
+ const note=p.note||p.notes||'';
+ $('#dtop').innerHTML=`<button class="back" id="db">‹ Back</button><span class="sp"></span><b>${pin?'Place':'Scouted place'}</b><span class="sp"></span>${pin?'<button class="back" id="qe">Edit</button>':'<span style="width:44px"></span>'}`;
+ $('#dbody').innerHTML=`<h3 style="margin:2px 0 3px">${esc(p.name||'Untitled place')}</h3><div class="sub">${ME?fmtD(dist(p))+' · ':''}${esc(p.type||'')}${o.zone?' · '+esc(o.zone):''}</div>${p.addr?`<div class="sub" style="margin-top:2px">${esc(p.addr)}</div>`:''}${note?`<p style="font-size:13px;margin:8px 0 0">${esc(note)}</p>`:''}
+ <div class="f" style="margin-top:14px"><label>Tap to mark</label><div class="st">${STATUS.map(s=>`<button data-q="${s.k}" class="${s.k===st?'on':''}"><span class="dot" style="background:${s.c}"></span>${s.t}</button>`).join('')}</div></div>
+ <div class="row" style="margin-top:12px"><button class="btn p" id="qw" style="flex:1">Walk there</button><button class="btn" id="qt" style="flex:1">Bus / Metro</button></div>
+ ${p.phone?`<a class="btn w" href="tel:${esc(p.phone)}" style="margin-top:8px;display:block;text-align:center">Call ${esc(p.phone)}</a>`:''}
+ ${p.url?'<button class="btn w" id="qs" style="margin-top:8px">Open source page</button>':''}`;
+}
+$('#dtop').addEventListener('click',e=>{if(e.target.id==='qe'&&Q&&Q.pin){const id=Q.pin.id;Q=null;openDetail(id)}});
+$('#dbody').addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b||!Q)return;
+ const p0=Q.pin||Q.o;
+ if(b.dataset.q){
+  let p=Q.pin;const s=Q.o;
+  if(!p){p={id:'p-'+s.id,sid:s.id,name:s.name,addr:s.addr||'',lat:s.lat,lon:s.lon,type:TYPES.includes(s.type)?s.type:'Other',contact:'',phone:s.phone||'',notes:s.note||'',url:s.url||'',day:S.sel,status:'todo'};S.pins.push(p);Q.pin=p}
+  const was=p.status;p.status=b.dataset.q;p.upd=Date.now();p.tday=S.sel;save();
+  toast(SK[p.status].t+(was!==p.status?' · +'+SK[p.status].xp+' XP':''));
+  paintQuick();if(TAB.v==='quest')renderQuest();
+ }
+ if(b.id==='qw')openExt(gmaps(p0,'walking'));
+ if(b.id==='qt')openExt(gmaps(p0,'transit'));
+ if(b.id==='qs'&&p0.url)openExt(p0.url);
+});
+
+/* ---------- sync: phone and Mac share one state ---------- */
+const SYNC='https://roma-sync.spicytake.lol/state/d3f6b317ae1c7ff8824bab86';
+function mergeState(a,b){
+ a=a||{};b=b||{};const tomb=Object.assign({},a.tomb||{});
+ for(const[k,v]of Object.entries(b.tomb||{}))if(!tomb[k]||v>tomb[k])tomb[k]=v;
+ const m=new Map();for(const p of[...(a.pins||[]),...(b.pins||[])]){if(!p||!p.id)continue;const o=m.get(p.id);if(!o||(p.upd||0)>(o.upd||0))m.set(p.id,p)}
+ const pins=[...m.values()].filter(p=>!(tomb[p.id]&&tomb[p.id]>=(p.upd||0)));
+ const start=a.start&&b.start?Math.min(a.start,b.start):(a.start||b.start||null);
+ return{pins,tomb,start};
+}
+let syncing=false;
+async function sync(){
+ if(syncing)return;syncing=true;
+ try{
+  const r=await fetch(SYNC,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pins:S.pins,tomb:S.tomb||{},start:S.start})});
+  if(r.ok){
+   const j=await r.json();const m=mergeState(j,{pins:S.pins,tomb:S.tomb,start:S.start});
+   const before=JSON.stringify([S.pins,S.start]);
+   S.pins=m.pins;S.tomb=m.tomb;if(m.start)S.start=m.start;saveLocal();
+   if(JSON.stringify([S.pins,S.start])!==before&&!$('#detail').classList.contains('open')){syncPins();render()}
+  }
+ }catch(e){}
+ syncing=false;
+}
+
 render();
+sync();setInterval(sync,20000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync()});
 // Fresh scouted places from the website, so new finds reach the Mac app and the phone without a reinstall.
 (()=>{const u=(TAURI?'https://roma.spicytake.lol/':'')+'scout.json?t='+Date.now();
  fetch(u,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{if(Array.isArray(j)&&j.length){SCOUT.length=0;SCOUT.push(...j);syncScout();if(TAB.v!=='quest')render()}}).catch(()=>{})})();
