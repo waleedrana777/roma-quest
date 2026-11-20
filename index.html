@@ -534,7 +534,7 @@ if(matchMedia('(max-width:720px)').matches)$('#panel').classList.add('peek');
 map.on('load',()=>{render()});
 render();
 // Fresh scouted places from the website, so new finds reach the Mac app and the phone without a reinstall.
-(()=>{const u=(TAURI?'https://waleedrana777.github.io/roma-quest/':'')+'scout.json?t='+Date.now();
+(()=>{const u=(TAURI?'https://roma.spicytake.lol/':'')+'scout.json?t='+Date.now();
  fetch(u,{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{if(Array.isArray(j)&&j.length){SCOUT.length=0;SCOUT.push(...j);syncScout();if(TAB.v!=='quest')render()}}).catch(()=>{})})();
 window.__rq={map,S,openDetail};
 })();
