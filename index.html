@@ -126,7 +126,8 @@ a{color:var(--blue);text-decoration:none}
  #scan{left:50%;top:max(12px,env(safe-area-inset-top))}
  .maplibregl-ctrl-bottom-left{left:0;bottom:calc(48vh)}
  #ctl{top:max(10px,env(safe-area-inset-top))}
- #walkbar{top:max(12px,env(safe-area-inset-top))}
+ #walkbar{top:max(12px,env(safe-area-inset-top));left:10px;right:56px;transform:none;max-width:none}
+ #wbt{flex:1;min-width:0}
  #toast{bottom:calc(48vh + 14px)}
  input,select,textarea,.f input,.f select,.f textarea,.search input{font-size:16px}
 }
@@ -160,7 +161,7 @@ a{color:var(--blue);text-decoration:none}
   <button id="cmp" title="North" aria-label="Reset north"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3l4 9H8z" fill="#ff3b30"/><path d="M12 21l-4-9h8z" fill="currentColor" opacity=".45"/></svg></button>
  </div>
 </div>
-<div id="walkbar" class="glass"><span id="wbt">Tap where the street starts</span><button id="wbu">Undo</button><button id="wbd">Done</button></div>
+<div id="walkbar" class="glass"><span id="wbt">Tap the start of the street</span><button id="wbu">Undo</button><button id="wbd">Done</button></div>
 <div id="zoom" class="grp glass"><button id="zi" aria-label="Zoom in">+</button><button id="zo" aria-label="Zoom out">−</button></div>
 <div id="toast" class="glass"></div>
 
@@ -605,14 +606,14 @@ function setFrom(ll){WALK.from=ll;if(!WALK.mk){const e=document.createElement('d
 function walkMode(on){
  WALK.on=on;WALK.from=null;if(WALK.mk){WALK.mk.remove();WALK.mk=null}
  $('#walk').classList.toggle('on',on);$('#walkbar').classList.toggle('on',on);$('#scan').style.visibility=on?'hidden':'';
- $('#wbt').textContent='Tap where the street starts';
+ $('#wbt').textContent='Tap the start of the street';
  if(on){if($('#detail').classList.contains('open'))closeDetail();if(map.getZoom()<15)map.easeTo({zoom:16})}
 }
 $('#walk').onclick=()=>walkMode(!WALK.on);
 $('#wbd').onclick=()=>walkMode(false);
 $('#wbu').onclick=()=>{
  const id=WALK.mine.pop();const w=id&&S.walks.find(x=>x.id===id);
- if(!w){if(WALK.from){WALK.from=null;if(WALK.mk){WALK.mk.remove();WALK.mk=null}$('#wbt').textContent='Tap where the street starts'}else toast('Nothing to undo');return}
+ if(!w){if(WALK.from){WALK.from=null;if(WALK.mk){WALK.mk.remove();WALK.mk=null}$('#wbt').textContent='Tap the start of the street'}else toast('Nothing to undo');return}
  S.tomb=S.tomb||{};S.tomb[w.id]=Date.now();S.walks=S.walks.filter(x=>x!==w);save();drawWalks();
  setFrom({lng:w.c[0][0],lat:w.c[0][1]});$('#wbt').textContent='Removed · tap where you stopped';
 };
@@ -631,7 +632,7 @@ async function walkTap(ll){
  const c=await snap(WALK.from,ll);
  const w={id:'w-'+uid(),c:c.map(p=>[+(+p[0]).toFixed(6),+(+p[1]).toFixed(6)]),upd:Date.now(),day:S.sel};
  S.walks.push(w);WALK.mine.push(w.id);save();drawWalks();
- WALK.busy=false;setFrom(ll);$('#wbt').textContent=`+${fmtD(walkLen(w))} · tap the next point, or Done`;
+ WALK.busy=false;setFrom(ll);$('#wbt').textContent=`+${fmtD(walkLen(w))} · tap next, or Done`;
  if(TAB.v==='quest')renderQuest();
 }
 function walkSheet(id){
