@@ -90,6 +90,14 @@ body.tauri #ctl{top:36px}
 .grp{border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
 .grp button{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:300;color:var(--text)}
 .grp button+button{border-top:.5px solid var(--sep)}
+#walk.on{background:#30b852;color:#fff}
+#walkbar{position:fixed;z-index:10;top:12px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:8px;padding:5px 6px 5px 14px;border-radius:99px;font-weight:600;font-size:13.5px;white-space:nowrap;max-width:94vw}
+body.tauri #walkbar{top:38px}
+#walkbar.on{display:flex}
+#wbt{overflow:hidden;text-overflow:ellipsis}
+#walkbar button{padding:6px 11px;border-radius:99px;background:var(--fill);font-weight:600;font-size:13px;color:var(--text)}
+#walkbar #wbd{background:#30b852;color:#fff}
+.wdot{width:16px;height:16px;border-radius:50%;background:#30b852;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
 #zoom{position:fixed;z-index:9;right:10px;bottom:34px}
 #cmp svg{transition:transform .1s}
 #scan{position:fixed;z-index:9;top:12px;left:calc(50% + 181px);transform:translateX(-50%);height:34px;padding:0 16px;border-radius:99px;font-weight:600;font-size:13.5px;color:var(--blue);display:none;white-space:nowrap}
@@ -118,6 +126,7 @@ a{color:var(--blue);text-decoration:none}
  #scan{left:50%;top:max(12px,env(safe-area-inset-top))}
  .maplibregl-ctrl-bottom-left{left:0;bottom:calc(48vh)}
  #ctl{top:max(10px,env(safe-area-inset-top))}
+ #walkbar{top:max(12px,env(safe-area-inset-top))}
  #toast{bottom:calc(48vh + 14px)}
  input,select,textarea,.f input,.f select,.f textarea,.search input{font-size:16px}
 }
@@ -147,9 +156,11 @@ a{color:var(--blue);text-decoration:none}
  <div class="grp glass">
   <button id="mode" title="Light / dark" aria-label="Appearance"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12.5l9 5 9-5"/><path d="M3 16.5l9 5 9-5"/></svg></button>
   <button id="loc" title="My location" aria-label="My location"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M21 3L3 10.5l7.5 2.5L13 21z"/></svg></button>
+  <button id="walk" title="Mark a street as walked" aria-label="Mark street"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M7 19h6a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h6"/></svg></button>
   <button id="cmp" title="North" aria-label="Reset north"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3l4 9H8z" fill="#ff3b30"/><path d="M12 21l-4-9h8z" fill="currentColor" opacity=".45"/></svg></button>
  </div>
 </div>
+<div id="walkbar" class="glass"><span id="wbt">Tap where the street starts</span><button id="wbu">Undo</button><button id="wbd">Done</button></div>
 <div id="zoom" class="grp glass"><button id="zi" aria-label="Zoom in">+</button><button id="zo" aria-label="Zoom out">−</button></div>
 <div id="toast" class="glass"></div>
 
@@ -352,12 +363,12 @@ function renderQuest(){
  const d=S.sel,z=ZONES[d-1],m=mission(d),cur=curDay();
  const done=ZONES.filter(x=>mDone(x.d)).length,xp=xpTotal();
  const cnt=k=>S.pins.filter(p=>p.status===k).length;
- let h=`<div class="card"><div class="row"><div><div class="sub">${S.start?'Today is':'30-day journey'}</div><div class="big">${S.start?'Day '+cur:'Day 1'}<span class="sub" style="font-size:15px;font-weight:600"> / 30</span></div></div><div class="sp"></div><div style="text-align:right"><div class="pill">Level ${Math.floor(xp/250)+1}</div><div class="sub" style="margin-top:4px">${xp} XP</div></div></div><div class="bar"><i style="width:${done/30*100}%"></i></div><div class="sub" style="margin-top:5px">${done} of 30 days complete · ${S.pins.length} places · ${cnt('cv')+cnt('interview')+cnt('hired')} CVs out</div>`;
+ let h=`<div class="card"><div class="row"><div><div class="sub">${S.start?'Today is':'30-day journey'}</div><div class="big">${S.start?'Day '+cur:'Day 1'}<span class="sub" style="font-size:15px;font-weight:600"> / 30</span></div></div><div class="sp"></div><div style="text-align:right"><div class="pill">Level ${Math.floor(xp/250)+1}</div><div class="sub" style="margin-top:4px">${xp} XP</div></div></div><div class="bar"><i style="width:${done/30*100}%"></i></div><div class="sub" style="margin-top:5px">${done} of 30 days complete · ${S.pins.length} places · ${cnt('cv')+cnt('interview')+cnt('hired')} CVs out${(S.walks||[]).length?' · '+fmtD(S.walks.reduce((a,w)=>a+walkLen(w),0))+' of streets walked':''}</div>`;
  if(!S.start)h+=`<button class="btn p w" id="go" style="margin-top:10px">Start Day 1 today</button>`;
  h+=`</div><div class="days">${ZONES.map(x=>`<button data-d="${x.d}" class="${x.rest?'rest ':''}${mDone(x.d)?'done ':''}${x.d===d?'sel ':''}${x.d===cur?'cur':''}">${mDone(x.d)?'✓':x.d}</button>`).join('')}</div>`;
  h+=`<div class="card"><div class="sub">Day ${d}${z.rest?' · rest & follow-up':''}</div><h3>${esc(z.name)}</h3><div class="sub">${esc(z.sub)}</div><p style="margin:8px 0 0;font-size:13px">${esc(z.tip)}</p><div class="row" style="margin-top:10px"><button class="btn p" id="fz" style="flex:1">Fly there</button><button class="btn" id="tr" style="flex:1">Transit from Cavour</button></div>`;
  h+=`<div class="mis">${m.rows.map(r=>`<div style="margin-top:8px"><div class="row"><span>${r[0]}</span><span class="sp"></span><b>${Math.min(r[1],r[2])}/${r[2]}</b></div><div class="bar"><i style="width:${Math.min(1,r[1]/r[2])*100}%;background:${r[1]>=r[2]?'var(--green)':'var(--blue)'}"></i></div></div>`).join('')}</div></div>`;
- h+=`<div class="card" style="padding:10px 12px"><details style="margin:0"><summary>What to say</summary>${PHRASES.map(p=>`<div class="it"><b>${esc(p[0])}</b><div class="sub">${esc(p[1])}</div></div>`).join('')}</details><details><summary>Map legend</summary><div class="sub" style="margin-top:6px">Beige-grey blocks with a dashed edge are industrial zones, where warehouses cluster. Tap the map to drop a pin. Dark letter dots are places scouted on the web for you: <b>W</b> wholesale, <b>S</b> big stores, <b>L</b> logistics, <b>A</b> airport, <b>J</b> job agencies and job centres. Tap one, then Add. <b>Scan this area</b> finds more places tagged on OpenStreetMap. Zones come from public listings: verify on the ground.</div></details></div>`;
+ h+=`<div class="card" style="padding:10px 12px"><details style="margin:0"><summary>What to say</summary>${PHRASES.map(p=>`<div class="it"><b>${esc(p[0])}</b><div class="sub">${esc(p[1])}</div></div>`).join('')}</details><details><summary>Map legend</summary><div class="sub" style="margin-top:6px">Beige-grey blocks with a dashed edge are industrial zones, where warehouses cluster. Tap the map to drop a pin. Dark letter dots are places scouted on the web for you: <b>W</b> wholesale, <b>S</b> big stores, <b>L</b> logistics, <b>A</b> airport, <b>J</b> job agencies and job centres. Tap one, then Add. <b>Scan this area</b> finds more places tagged on OpenStreetMap. The <b>street</b> button marks streets you walked: tap where you started, then where you stopped. Tap a green street to remove it. Zones come from public listings: verify on the ground.</div></details></div>`;
  $('#body').innerHTML=h;
 }
 $('#body').addEventListener('click',e=>{
@@ -434,7 +445,9 @@ $('#dbody').addEventListener('click',e=>{
 
 /* ---------- drop pin + reverse geocode ---------- */
 map.on('click',e=>{
- if(e.originalEvent.target.closest&&e.originalEvent.target.closest('.pin,.cand,.scout,.home'))return;
+ if(e.originalEvent.target.closest&&e.originalEvent.target.closest('.pin,.cand,.scout,.home,.wdot'))return;
+ if(WALK.on){walkTap(e.lngLat);return}
+ if(map.getLayer('walk-line')){const hit=map.queryRenderedFeatures([[e.point.x-10,e.point.y-10],[e.point.x+10,e.point.y+10]],{layers:['walk-line']})[0];if(hit&&!$('#detail').classList.contains('open')){walkSheet(hit.properties.id);return}}
  if($('#detail').classList.contains('open')&&!draft)return;
  newDraft({lat:e.lngLat.lat,lon:e.lngLat.lng});
 });
@@ -576,25 +589,80 @@ $('#dbody').addEventListener('click',e=>{
  if(b.id==='qs'&&p0.url)openExt(p0.url);
 });
 
+/* ---------- walked streets: tap start, tap end, the line follows the streets ---------- */
+S.walks=S.walks||[];
+const WALK={on:false,from:null,mk:null,busy:false,mine:[]};
+const hav=(a,b)=>{const R=6371e3,r=Math.PI/180,dl=(b[1]-a[1])*r,dn=(b[0]-a[0])*r,x=Math.sin(dl/2)**2+Math.cos(a[1]*r)*Math.cos(b[1]*r)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(x))};
+const walkLen=w=>{let d=0;for(let i=1;i<w.c.length;i++)d+=hav(w.c[i-1],w.c[i]);return d};
+const wgeo=()=>({type:'FeatureCollection',features:(S.walks||[]).map(w=>({type:'Feature',properties:{id:w.id},geometry:{type:'LineString',coordinates:w.c}}))});
+function addWalkLayer(){
+ if(!map.getSource('walks'))map.addSource('walks',{type:'geojson',data:wgeo()});
+ if(!map.getLayer('walk-line'))map.addLayer({id:'walk-line',type:'line',source:'walks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#30b852','line-width':['interpolate',['linear'],['zoom'],12,3,16,7,19,14],'line-opacity':.8}},map.getLayer('rd-lbl')?'rd-lbl':undefined);
+}
+function drawWalks(){const src=map.getSource('walks');if(src)src.setData(wgeo());else if(map.isStyleLoaded())addWalkLayer()}
+map.on('style.load',addWalkLayer);map.on('load',addWalkLayer);if(map.isStyleLoaded())addWalkLayer();
+function setFrom(ll){WALK.from=ll;if(!WALK.mk){const e=document.createElement('div');e.className='wdot';WALK.mk=new maplibregl.Marker({element:e}).setLngLat(ll).addTo(map)}else WALK.mk.setLngLat(ll)}
+function walkMode(on){
+ WALK.on=on;WALK.from=null;if(WALK.mk){WALK.mk.remove();WALK.mk=null}
+ $('#walk').classList.toggle('on',on);$('#walkbar').classList.toggle('on',on);$('#scan').style.visibility=on?'hidden':'';
+ $('#wbt').textContent='Tap where the street starts';
+ if(on){if($('#detail').classList.contains('open'))closeDetail();if(map.getZoom()<15)map.easeTo({zoom:16})}
+}
+$('#walk').onclick=()=>walkMode(!WALK.on);
+$('#wbd').onclick=()=>walkMode(false);
+$('#wbu').onclick=()=>{
+ const id=WALK.mine.pop();const w=id&&S.walks.find(x=>x.id===id);
+ if(!w){if(WALK.from){WALK.from=null;if(WALK.mk){WALK.mk.remove();WALK.mk=null}$('#wbt').textContent='Tap where the street starts'}else toast('Nothing to undo');return}
+ S.tomb=S.tomb||{};S.tomb[w.id]=Date.now();S.walks=S.walks.filter(x=>x!==w);save();drawWalks();
+ setFrom({lng:w.c[0][0],lat:w.c[0][1]});$('#wbt').textContent='Removed · tap where you stopped';
+};
+async function snap(a,b){
+ const q=`${a.lng.toFixed(6)},${a.lat.toFixed(6)};${b.lng.toFixed(6)},${b.lat.toFixed(6)}?overview=full&geometries=geojson`;
+ for(const u of['https://routing.openstreetmap.de/routed-foot/route/v1/driving/','https://router.project-osrm.org/route/v1/foot/']){
+  try{const ac=new AbortController();const t=setTimeout(()=>ac.abort(),8000);const r=await fetch(u+q,{signal:ac.signal});clearTimeout(t);
+   if(r.ok){const j=await r.json();const c=j.routes&&j.routes[0]&&j.routes[0].geometry.coordinates;if(c&&c.length>1)return c}}catch(e){}
+ }
+ return[[a.lng,a.lat],[b.lng,b.lat]];
+}
+async function walkTap(ll){
+ if(WALK.busy)return;
+ if(!WALK.from){setFrom(ll);$('#wbt').textContent='Now tap where you stopped';return}
+ WALK.busy=true;$('#wbt').textContent='Following the streets…';
+ const c=await snap(WALK.from,ll);
+ const w={id:'w-'+uid(),c:c.map(p=>[+(+p[0]).toFixed(6),+(+p[1]).toFixed(6)]),upd:Date.now(),day:S.sel};
+ S.walks.push(w);WALK.mine.push(w.id);save();drawWalks();
+ WALK.busy=false;setFrom(ll);$('#wbt').textContent=`+${fmtD(walkLen(w))} · tap the next point, or Done`;
+ if(TAB.v==='quest')renderQuest();
+}
+function walkSheet(id){
+ const w=(S.walks||[]).find(x=>x.id===id);if(!w)return;
+ Q=null;cur=null;
+ $('#dtop').innerHTML=`<button class="back" id="db">‹ Back</button><span class="sp"></span><b>Walked street</b><span class="sp"></span><span style="width:44px"></span>`;
+ $('#dbody').innerHTML=`<h3 style="margin:2px 0 3px">${fmtD(walkLen(w))} walked</h3><div class="sub">Day ${w.day||'–'} · ${new Date(w.upd).toLocaleDateString()}</div><button class="btn d w" id="wrm" data-w="${esc(w.id)}" style="margin-top:14px">Remove this street</button>`;
+ $('#detail').classList.add('open');const pn=$('#panel');pn.classList.remove('peek');pn.classList.add('full');
+}
+$('#dbody').addEventListener('click',e=>{const b=e.target.closest('#wrm');if(!b)return;const id=b.dataset.w;S.tomb=S.tomb||{};S.tomb[id]=Date.now();S.walks=S.walks.filter(x=>x.id!==id);save();drawWalks();closeDetail();if(TAB.v==='quest')renderQuest();toast('Street removed')});
+
 /* ---------- sync: phone and Mac share one state ---------- */
 const SYNC='https://roma-sync.spicytake.lol/state/d3f6b317ae1c7ff8824bab86';
 function mergeState(a,b){
  a=a||{};b=b||{};const tomb=Object.assign({},a.tomb||{});
  for(const[k,v]of Object.entries(b.tomb||{}))if(!tomb[k]||v>tomb[k])tomb[k]=v;
- const m=new Map();for(const p of[...(a.pins||[]),...(b.pins||[])]){if(!p||!p.id)continue;const o=m.get(p.id);if(!o||(p.upd||0)>(o.upd||0))m.set(p.id,p)}
- const pins=[...m.values()].filter(p=>!(tomb[p.id]&&tomb[p.id]>=(p.upd||0)));
+ const list=(x,y)=>{const m=new Map();for(const p of[...(x||[]),...(y||[])]){if(!p||!p.id)continue;const o=m.get(p.id);if(!o||(p.upd||0)>(o.upd||0))m.set(p.id,p)}return[...m.values()].filter(p=>!(tomb[p.id]&&tomb[p.id]>=(p.upd||0)))};
+ const pins=list(a.pins,b.pins),walks=list(a.walks,b.walks);
  const start=a.start&&b.start?Math.min(a.start,b.start):(a.start||b.start||null);
- return{pins,tomb,start};
+ return{pins,walks,tomb,start};
 }
 let syncing=false;
 async function sync(){
  if(syncing)return;syncing=true;
  try{
-  const r=await fetch(SYNC,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pins:S.pins,tomb:S.tomb||{},start:S.start})});
+  const r=await fetch(SYNC,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pins:S.pins,walks:S.walks||[],tomb:S.tomb||{},start:S.start})});
   if(r.ok){
-   const j=await r.json();const m=mergeState(j,{pins:S.pins,tomb:S.tomb,start:S.start});
-   const before=JSON.stringify([S.pins,S.start]);
-   S.pins=m.pins;S.tomb=m.tomb;if(m.start)S.start=m.start;saveLocal();
+   const j=await r.json();const m=mergeState(j,{pins:S.pins,walks:S.walks,tomb:S.tomb,start:S.start});
+   const before=JSON.stringify([S.pins,S.start]),wb=JSON.stringify(S.walks);
+   S.pins=m.pins;S.walks=m.walks;S.tomb=m.tomb;if(m.start)S.start=m.start;saveLocal();
+   if(JSON.stringify(S.walks)!==wb)drawWalks();
    if(JSON.stringify([S.pins,S.start])!==before&&!$('#detail').classList.contains('open')){syncPins();render()}
   }
  }catch(e){}
