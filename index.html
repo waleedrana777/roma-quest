@@ -521,7 +521,8 @@ map.on('rotate',()=>{$('#cmp svg').style.transform=`rotate(${-map.getBearing()}d
 let meMk=null;
 function setMe(c){ME={lat:c.latitude,lon:c.longitude};const ll=[ME.lon,ME.lat];if(!meMk){const e=document.createElement('div');e.className='me';meMk=new maplibregl.Marker({element:e}).setLngLat(ll).addTo(map)}else meMk.setLngLat(ll)}
 $('#loc').onclick=()=>{if(!navigator.geolocation){toast('Location unavailable');return}
- navigator.geolocation.getCurrentPosition(p=>{setMe(p.coords);map.flyTo({center:[ME.lon,ME.lat],zoom:16})},()=>toast('Location blocked. Allow it in system settings.'),{enableHighAccuracy:true,timeout:8000})};
+ if(ME)map.flyTo({center:[ME.lon,ME.lat],zoom:16});else toast('Finding you…');
+ navigator.geolocation.getCurrentPosition(p=>{setMe(p.coords);map.flyTo({center:[ME.lon,ME.lat],zoom:16})},err=>{if(err&&err.code===1)toast('Location is off for this app. Allow it in settings.');else if(!ME)toast('No GPS fix yet. Try again in a moment.')},{enableHighAccuracy:true,maximumAge:30000,timeout:20000})};
 if(navigator.geolocation){let first=true;navigator.geolocation.watchPosition(p=>{setMe(p.coords);const inRome=ME.lat>41.6&&ME.lat<42.15&&ME.lon>12.2&&ME.lon<12.85;if(first&&inRome){first=false;map.flyTo({center:[ME.lon,ME.lat],zoom:15});if(TAB.v==='places')render()}},()=>{},{enableHighAccuracy:true,maximumAge:15000,timeout:20000})}
 $('#mode').onclick=()=>{S.dark=!dark();save();applyTheme();map.setStyle(buildStyle(dark()))};
 matchMedia('(prefers-color-scheme: dark)').addEventListener&&matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if(S.dark===null){applyTheme();map.setStyle(buildStyle(dark()))}});
